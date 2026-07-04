@@ -8,14 +8,9 @@
 -- out3: in2 quantized to scale3 continuously
 -- out4: trigger pulses when out3 changes
 
-snum = {'octave','chroma','major','harMin','dorian','majTri','dom7th','wholet'}
+snum = {'octave','chroma','major','harMin','dorian','dorianflat5', 'majTri','dom7th','wholet'}
 
-public.add('scale1','major',snum
-  , function(s) output[1].scale = scales[s] end)
-public.add('scale2','harMin',snum
-  , function(s) output[2].scale = scales[s] end)
-public.add('scale3','majTri',snum
-  , function(s) input[2].mode('scale',scales[s]) end)
+interval = 0
 
 scales =
 { octave = {0}
@@ -23,28 +18,56 @@ scales =
 , major  = {0,2,4,5,7,9,11}
 , harMin = {0,2,3,5,7,8,10}
 , dorian = {0,2,3,5,7,9,10}
+, dorianflat5 = {0,2,3,5,6,9,10}
 , majTri = {0,4,7}
 , dom7th = {0,4,7,10}
 , wholet = {0,2,4,6,8,10}
+, none = "none"
 }
+
+progression = {'dorian', 'dorianflat5', 'chroma', 'chroma', 'none', 'none'}
+currentProgression = 1
+
+ii.crow[1].event = function(e, value)
+  if e.name == 'output' and e.device == 1 then
+    if e.arg == 1 then
+      print('event1', e.name, e.device, value)
+      --for k,v in pairs(e) do
+      --  print(k.." = "..v)
+      --end
+      interval = value
+    elseif e.arg == 2 then
+      --print('event2', e.name, e.device, value)
+      --for k,v in pairs(e) do
+      --  print(k.." = "..v)
+      --end
+      currentProgression = math.fmod(math.tointeger(math.floor(value * 12 + 0.05)), #progression) + 1
+      print('rescaling', currentProgression, progression[currentProgression])
+      output[1].scale(scales[progression[currentProgression]])
+    end
+  end
+end
+
+-- ii.crow[1].call2 = function(cmd, arg)
+--   print('debug', cmd, arg)
+--   if e.cmd == 0 then
+--     print('debug..', cmd, arg)
+--     -- interval = arg
+--   end
+-- end
 
 -- update clocked outputs
 input[1].change = function(state)
-  output[1].volts = input[2].volts
-  output[2].volts = input[2].volts
-end
-
--- update continuous quantizer
-input[2].scale = function(s)
-  output[3].volts = s.volts
-  output[4]()
+  print('interval: ', interval)
+  ii.crow[1].get('output', 1)
+  ii.crow[1].get('output', 2)
+  output[1].volts = input[2].volts + interval
 end
 
 function init()
   input[1].mode('change',1,0.1,'rising')
-  input[2].mode('scale',scales[public.scale3])
-  output[1].scale(scales[public.scale1])
-  output[2].scale(scales[public.scale2])
-  output[4].action = pulse(0.01, 8)
+  output[1].scale(scales[progression[currentProgression]])
+  ii.crow[1].get('output', 1)
+  ii.crow[1].get('output', 2)
 end
 
